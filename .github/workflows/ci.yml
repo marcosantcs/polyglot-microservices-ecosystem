@@ -1,0 +1,89 @@
+name: CI — Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── .NET — OrderService ──────────────────────────────────────────────────
+  test-dotnet:
+    name: dotnet test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: order-service-dotnet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Run tests
+        run: dotnet test --no-build -c Release --verbosity normal --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dotnet-test-results
+          path: order-service-dotnet/**/*.trx
+
+  # ── Python — AnalyticsService ────────────────────────────────────────────
+  test-python:
+    name: pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analytics-service-python
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio httpx
+
+      - name: Run pytest
+        run: pytest --tb=short -v
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-results
+          path: analytics-service-python/.pytest_cache
+
+  # ── Docker build check ────────────────────────────────────────────────────
+  docker-build:
+    name: docker compose build
+    runs-on: ubuntu-latest
+    needs: [test-dotnet, test-python]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build all images
+        run: docker compose build --no-cache
+
+      - name: Smoke test — containers start
+        run: |
+          docker compose up -d
+          sleep 20
+          docker compose ps
+          docker compose down
