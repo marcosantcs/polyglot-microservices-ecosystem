@@ -1,0 +1,25 @@
+{
+  "title": "Polyglot Microservices Dashboard",
+  "panels": [
+    {
+      "title": "Total Orders",
+      "type": "stat",
+      "targets": [{"expr": "analytics_total_orders_total"}]
+    },
+    {
+      "title": "Total Revenue (R$)",
+      "type": "stat",
+      "targets": [{"expr": "analytics_total_revenue_total"}]
+    },
+    {
+      "title": "Orders per Minute",
+      "type": "graph",
+      "targets": [{"expr": "rate(analytics_total_orders_total[1m])"}]
+    },
+    {
+      "title": "RabbitMQ Queue Depth",
+      "type": "graph",
+      "targets": [{"expr": "rabbitmq_queue_messages{queue=~'orders.*'}"}]
+    }
+  ]
+}
