@@ -1,29 +1,31 @@
 variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "us-east-1"
+  default = "us-east-1"
 }
 
 variable "project_name" {
-  description = "Project name used as prefix for all resources"
-  type        = string
-  default     = "polyglot-microservices"
-}
-
-variable "environment" {
-  description = "Environment (dev, staging, prod)"
-  type        = string
-  default     = "prod"
-}
-
-variable "db_username" {
-  description = "PostgreSQL master username"
-  type        = string
-  sensitive   = true
+  default = "master-project"
 }
 
 variable "db_password" {
-  description = "PostgreSQL master password"
+  description = "RDS PostgreSQL password"
   type        = string
   sensitive   = true
+}
+
+variable "db_username" {
+  default = "postgres"
+}
+
+variable "db_name" {
+  default = "ordersdb"
+}
+
+variable "order_service_image" {
+  description = "ECR image URI for order-service"
+  type        = string
+}
+
+variable "analytics_service_image" {
+  description = "ECR image URI for analytics-service"
+  type        = string
 }
