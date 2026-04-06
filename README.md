@@ -1,143 +1,132 @@
-# Master-Project — Polyglot Microservices Ecosystem
+# polyglot-microservices-ecosystem
 
-> **Stack:** .NET 8 (OrderService) · Python 3.12 (AnalyticsService) · RabbitMQ · PostgreSQL · Docker Compose
+> Production-grade cloud-native platform: .NET 8 + Python 3.12 + Kubernetes + AWS Terraform + AI/LLM pipeline.
 
----
+[![CI](https://github.com/marcosantcs/polyglot-microservices-ecosystem/actions/workflows/ci.yml/badge.svg)](https://github.com/marcosantcs/polyglot-microservices-ecosystem/actions)
+![Terraform](https://img.shields.io/badge/Terraform-1.14-7B42BC?logo=terraform)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-1.30-326CE5?logo=kubernetes)
+![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python)
+![AWS](https://img.shields.io/badge/AWS-ECS_Fargate-FF9900?logo=amazonaws)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Topic_Exchange-FF6600?logo=rabbitmq)
+![Tests](https://img.shields.io/badge/Tests-34_passing-brightgreen?logo=pytest)
 
-## Architecture Overview
+## Architecture — 5 Phases
 
 ```mermaid
 graph TB
-    subgraph Client
-        CLI[REST Client / curl / Swagger]
+    subgraph CI["CI/CD — GitHub Actions"]
+        J1[build] --> J2[test] --> J3[validate]
     end
 
-    subgraph OrderService [OrderService · .NET 8 · :5000]
-        OC[OrderController]
-        OE[Order Entity - DDD Rich Domain]
-        PUB[RabbitMQPublisher]
-        OC --> OE
-        OC --> PUB
+    subgraph P1["Phase 1 — Core Ecosystem"]
+        OS[order-service .NET 8<br/>DDD + Aggregate Root]
+        AS[analytics-service Python<br/>FastAPI + pika]
+        RMQ[RabbitMQ<br/>Topic Exchange + DLQ]
+        PG[(PostgreSQL)]
+        OS -->|publishes events| RMQ
+        RMQ -->|consumes| AS
+        OS --> PG
     end
 
-    subgraph AnalyticsService [AnalyticsService · Python 3.12 · :8000]
-        CON[pika Consumer]
-        API[FastAPI /metrics · /events]
-        CON --> API
+    subgraph P2["Phase 2 — Testing + AI"]
+        TEST[34 Automated Tests<br/>xUnit 14 + pytest 13 + AI 7]
+        AI[ai-service Python<br/>OpenAI + PDF Q&A]
     end
 
-    subgraph Infrastructure
-        PG[(PostgreSQL :5432)]
-        RMQ[RabbitMQ :5672 / UI :15672]
+    subgraph P3["Phase 3 — Observability"]
+        PROM[Prometheus]
+        GRAF[Grafana Dashboards]
+        PROM --> GRAF
     end
 
-    CLI -->|POST /api/order| OC
-    OE -.->|persist| PG
-    PUB -->|order.created / order.cancelled| RMQ
-    RMQ -->|order.*| CON
-    CLI -->|GET /metrics| API
+    subgraph P4["Phase 4 — Kubernetes"]
+        NS[Namespace: microservices]
+        HPA[HPA auto-scale 2→10 pods]
+        KOS[order-service pod]
+        KAS[analytics-service pod]
+        NS --> HPA --> KOS
+        NS --> KAS
+    end
+
+    subgraph P5["Phase 5 — AWS + Terraform"]
+        VPC[VPC 10.0.0.0/16]
+        ALB[Application Load Balancer]
+        ECS[ECS Fargate Cluster]
+        RDS[(RDS PostgreSQL 15.4)]
+        ECR[ECR Repositories]
+        NAT[NAT Gateway]
+        VPC --> ALB --> ECS
+        VPC --> RDS
+        ECS --> ECR
+        VPC --> NAT
+    end
 ```
 
-### Event Flow
+## Tech Stack
 
-```
-POST /api/order
-    └─► OrderController
-            └─► Order.Create() + Order.Confirm()   [DDD Rich Domain]
-                    └─► RabbitMQPublisher.PublishAsync("order.created", payload)
-                                └─► RabbitMQ [topic exchange: orders.exchange]
-                                        └─► queue: analytics.orders
-                                                └─► AnalyticsService consumer
-                                                        └─► handle_order_created()
-                                                                └─► GET /metrics  (live update)
-```
-
----
-
-## Services
-
-| Service            | Tech            | Port       | Responsibility                          |
-|--------------------|-----------------|------------|-----------------------------------------|
-| `order-service`    | .NET 8 / ASP.NET Core | 5000 | Order lifecycle, DDD domain model, event publishing |
-| `analytics-service`| Python 3.12 / FastAPI | 8000 | Event consumption, real-time metrics    |
-| `postgres`         | PostgreSQL 16   | 5432       | Persistent order storage                |
-| `rabbitmq`         | RabbitMQ 3.13   | 5672/15672 | Async messaging backbone                |
-
----
-
-## Quick Start
-
-```bash
-# Clone e inicie tudo
-git clone <repo-url>
-cd Master-Project
-docker compose up --build -d
-
-# Acompanhe os logs
-docker compose logs -f
-
-# Crie um pedido
-curl -X POST http://localhost:5000/api/order \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerId": "user-123",
-    "items": [
-      { "product": "Notebook Dell", "quantity": 1, "unitPrice": 4500.00 },
-      { "product": "Mouse Logitech", "quantity": 2, "unitPrice": 149.90 }
-    ]
-  }'
-
-# Veja as métricas no AnalyticsService
-curl http://localhost:8000/metrics
-
-# Veja os eventos recentes
-curl http://localhost:8000/events/recent
-
-# RabbitMQ Management UI
-open http://localhost:15672  # guest / guest
-
-# Swagger do OrderService
-open http://localhost:5000/swagger
-```
-
----
-
-## Domain Design (DDD)
-
-- **`Order`** — Aggregate Root. Expõe métodos `Create()`, `AddItem()`, `Confirm()`, `Cancel()`. Estado interno protegido.
-- **`OrderItem`** — Value Object dentro do aggregate. Criado via factory method.
-- **`OrderStatus`** — Value Object imutável (Pending → Confirmed → Shipped / Cancelled).
-- **Invariants** enforced internamente: não é possível confirmar pedido vazio, nem cancelar pedido enviado.
-
----
-
-## CI/CD
-
-GitHub Actions em `.github/workflows/ci.yml`:
-- `dotnet test` no push para `main`/`develop`
-- `pytest` no push para `main`/`develop`
-- Docker build check após ambos os testes passarem
-
----
+| Layer | Technology |
+|---|---|
+| **Backend** | .NET 8 (C#), Python 3.12 |
+| **Architecture** | DDD, Aggregate Root, Rich Domain Model |
+| **Messaging** | RabbitMQ — Topic Exchange + Dead Letter Queue |
+| **Database** | PostgreSQL |
+| **AI / LLM** | OpenAI API — PDF upload + Q&A pipeline |
+| **Containers** | Docker multi-stage builds, Docker Compose |
+| **Orchestration** | Kubernetes 1.30, HPA (auto-scale 2→10 pods) |
+| **Cloud** | AWS ECS Fargate, RDS, ALB, VPC, ECR |
+| **IaC** | Terraform 1.14 — validated |
+| **Observability** | Prometheus + Grafana |
+| **CI/CD** | GitHub Actions — 3 jobs (build → test → validate) |
+| **Testing** | 34 automated tests (xUnit + pytest) |
 
 ## Project Structure
 
+
+## Quick Start
+
+### Requirements
+- Docker + Docker Compose
+- .NET 8 SDK
+- Python 3.12
+- kubectl + Minikube
+- Terraform >= 1.3
+
+### Run locally
+```bash
+git clone https://github.com/marcosantcs/polyglot-microservices-ecosystem.git
+cd polyglot-microservices-ecosystem
+cp .env.example .env
+docker-compose up -d
 ```
-Master-Project/
-├── docker-compose.yml
-├── README.md
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── order-service-dotnet/
-│   ├── Order.cs                  # DDD Rich Domain Entity
-│   ├── OrderController.cs        # REST API Controller
-│   ├── RabbitMQPublisher.cs      # Event Publisher
-│   ├── Program.cs                # ASP.NET Core host
-│   ├── OrderService.csproj
-│   └── Dockerfile
-└── analytics-service-python/
-    ├── main.py                   # FastAPI + pika consumer
-    ├── requirements.txt
-    └── Dockerfile
+
+### Run on Kubernetes
+```bash
+eval $(minikube docker-env)
+docker build -t order-service:latest ./order-service-dotnet
+docker build -t analytics-service:latest ./analytics-service-python
+kubectl apply -f k8s/
+kubectl get pods -n microservices
 ```
+
+### Validate AWS Infrastructure
+```bash
+cd infra
+terraform init
+terraform validate
+# Success! The configuration is valid.
+```
+
+## Phases
+
+| Phase | Description | Status |
+|---|---|---|
+| 1 | Core: .NET 8 DDD + Python FastAPI + RabbitMQ + PostgreSQL | ✅ |
+| 2 | AI service + 34 automated tests + GitHub Actions CI/CD | ✅ |
+| 3 | Prometheus + Grafana observability | ✅ |
+| 4 | Kubernetes HPA auto-scaling (2→10 pods) | ✅ |
+| 5 | AWS infrastructure as code: VPC + ECS Fargate + RDS + ALB | ✅ |
+
+## License
+
+MIT © [marcosantcs](https://github.com/marcosantcs)
