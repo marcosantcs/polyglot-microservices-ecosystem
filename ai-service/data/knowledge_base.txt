@@ -1,0 +1,21 @@
+# Polyglot Microservices Ecosystem — Knowledge Base
+
+## Architecture Overview
+This platform is built with a polyglot microservices architecture.
+The backend uses .NET 8 with Domain-Driven Design (DDD) principles.
+Python 3.12 handles AI/ML workloads via FastAPI microservices.
+RabbitMQ is used for asynchronous event-driven communication between services.
+PostgreSQL serves as the primary relational database.
+Redis handles caching and session management.
+
+## Infrastructure
+Kubernetes orchestrates all containerized services.
+Terraform manages AWS infrastructure as code.
+CI/CD pipelines are implemented via GitHub Actions.
+Prometheus and Grafana provide observability and monitoring.
+
+## AI Service
+The AI service implements a RAG (Retrieval-Augmented Generation) pipeline.
+It uses LangChain for LLM orchestration and FAISS as the vector store.
+OpenAI gpt-4o-mini is the language model used for cost-efficient inference.
+Embeddings are generated using text-embedding-3-small.
